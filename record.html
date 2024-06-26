@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Record Audio</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <style>
+      #saveBtn {
+        background: lightgreen;
+        font-size: 13px;
+        margin-top: 40px;
+        width: fit-content;
+        border-radius: 5px;
+        margin-left: auto;
+        border: none;
+        padding: 5px 10px;
+        cursor:pointer;
+      }
+      body {
+        height: 90vh;
+        display: flex;
+        flex-direction: column;
+      }
+      .hidden {
+        display: none;
+      }
+      #record {
+        border: none;
+        background-color: transparent;
+        cursor: pointer;
+      }
+      #record:hover {
+        transform: scale(0.95);
+      }
+      .record {
+        align-items: center;
+        display: flex;
+        justify-content: center;
+      }
+      .audio-header, .text-header {
+        text-decoration: underline;
+        letter-spacing: 1px;
+        font-family: system-ui;
+        color: #222222;
+        text-align: center;
+      }
+      .text-header {
+        margin-top: 30px;
+      }
+      .audio-status {
+        color: rebeccapurple;
+        margin: auto;
+        margin-top: 10px;
+      }
+      .fa-microphone {
+        font-size: 32px;
+        margin-top: 20px;
+      }
+      .para {
+        letter-spacing: 1px;
+        font-size: 20px;
+        text-align: center;
+        margin-bottom: 47px;
+      }
+      .ratings{
+        display:flex;
+        gap:15px;
+        width:100%;
+        justify-content:center;
+        align-items:center;
+        height:fit-content;
+      }
+      .ratings {
+  display: flex;
+  justify-content: space-around;
+  max-width: 200px;
+  margin: auto;
+}
+
+.rating-box {
+  width: 40px;
+  height: 30px;
+  margin-top:10px;
+  border: 1px solid #000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.rating-box:hover {
+  background-color: #f0f0f0;
+}
+
+.rating-box.active {
+  background-color: lightblue;
+}
+
+    </style>
+</head>
+<body>
+    <p class="para">You are recording the feedback of candidate <strong><?= name ?></strong></p>
+    <div class="audio-header">Audio Feedback</div>
+    <div class="record">
+      <button id="record"><i class="fa fa-microphone"></i></button>
+    </div>
+    <div class="audio-status" id="status">Recording hasn't started yet.</div>
+    <br/>
+    <div class="text-header">Text feedback</div>
+    <textarea rows="30" id="text-feedback"></textarea>
+    <div>
+      <div class="text-header">Rating</div>
+      <div class="ratings">
+        <div class="rating-box" data-value="-2">-2</div>
+        <div class="rating-box" data-value="-1">-1</div>
+        <div class="rating-box" data-value="0">0</div>
+        <div class="rating-box" data-value="1">1</div>
+        <div class="rating-box" data-value="2">2</div>
+      </div>
+    </div>
+    <button id="saveBtn">Save</button>
+   <script>
+  let mediaRecorder;
+  let audioChunks = [];
+  let base64AudioMessage;
+  let record = false;
+  const id = "<?= id ?>";
+  const row = "<?= row ?>";
+
+  // Attempt to get user media
+  navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(stream => {
+      // Initialize MediaRecorder with the stream
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = event => {
+        // Push each chunk of audio data into an array
+        audioChunks.push(event.data);
+      };
+      mediaRecorder.onstop = () => {
+        // Convert audio chunks into a single blob
+        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = () => {
+          // Extract the base64 encoded audio message
+          base64AudioMessage = reader.result.split(',')[1];
+        };
+      };
+    });
+
+  document.getElementById('record').onclick = () => {
+    if (!record) {
+      record = true;
+      mediaRecorder.start();
+      document.getElementById('status').innerText = "Your voice is being recorded...";
+      document.getElementById('record').classList.add('recording');
+    } else {
+      record = false;
+      mediaRecorder.stop();
+      document.getElementById('status').innerText = "Recording has stopped.";
+      document.getElementById('record').classList.remove('recording');
+    }
+  };
+
+  // Handle save button click
+  document.getElementById('saveBtn').onclick = () => {
+    console.log(base64AudioMessage)
+    const textFeedback = document.getElementById("text-feedback").value;
+    const selectedRating = document.querySelector('.rating-box.active')?.getAttribute('data-value') || 'No rating selected';
+    console.log(selectedRating)
+    google.script.run.withSuccessHandler(() => {
+      console.log('Audio sent to server');
+    }).appendDataToCell(id, row, base64AudioMessage, textFeedback, selectedRating);
+    google.script.host.close();
+  };
+
+  // Attach click event listener to each rating box
+  document.querySelectorAll('.rating-box').forEach(box => {
+    box.addEventListener('click', function () {
+      document.querySelectorAll('.rating-box').forEach(innerBox => {
+        innerBox.classList.remove('active'); // Remove 'active' class from all boxes
+      });
+      this.classList.add('active'); // Add 'active' class to the clicked box
+    });
+  });
+</script>
+
+</body>
+</html>
